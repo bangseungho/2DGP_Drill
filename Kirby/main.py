@@ -10,25 +10,35 @@ MASS = 0.05
 running = True
 
 
-class Kirby:
+class object:
+    def __init__(self, posX, posY, width, height):
+        self.posX = posX
+        self.posY = posY
+        self.width = width
+        self.height = height
+
+
+class Kirby(object):
     def __init__(self):
-        self.idle = load_image("Kirby.png")
+        super().__init__(WINDOW_WIDTH / 2, 100, 22, 20)
+        self.idle = load_image("resource/idle.png")
         self.dx = 0
         self.dy = 0
-        self.posX = 400
-        self.posY = 100
         self.isJump = 0
         self.v = VELOCITY
         self.m = MASS
         self.hit_box = True
         self.frame = 0
+        self.add_frame = 0.1
+        self.div_frame = 6
 
     # draw player
     def draw(self):
-        self.idle.clip_draw(0, 0, 22, 20, self.posX, self.posY, 40, 36)
+        self.idle.clip_draw(self.frame * self.width, 0, self.width, self.height, self.posX, self.posY, 44, 40)
         # hit_box
         if self.hit_box:
-            draw_rectangle(player.posX - 22, player.posY - 20, player.posX + 22, player.posY + 20)
+            draw_rectangle(player.posX - self.width, player.posY - self.height, player.posX + self.width,
+                           player.posY + self.height)
 
     # move player
     def move(self):
@@ -53,6 +63,8 @@ class Kirby:
         # move player
         self.move()
         self.check_screen()
+        self.frame = (self.frame + 1) % self.div_frame
+
         # jump player
         if self.isJump > 0:
             if self.isJump == 2 and self.posY < WINDOW_HEIGHT - 20:
@@ -72,14 +84,15 @@ class Kirby:
                 self.v = VELOCITY
 
 
-class stage:
+class stage(object):
     def __init__(self):
+        super().__init__(WINDOW_WIDTH - 300, WINDOW_HEIGHT / 2, 1100, WINDOW_HEIGHT)
         self.stage1_background = load_image("stage1_background.png")
         self.stage1_land = load_image("stage1_land.png")
         self.move_map = 0
 
     def draw(self):
-        self.stage1_background.draw(WINDOW_WIDTH - 300 - self.move_map / 5, WINDOW_HEIGHT / 2, 1100, WINDOW_HEIGHT)
+        self.stage1_background.draw(self.posX - self.move_map / 5, self.posY, self.width, self.height)
         self.stage1_land.draw(1000 - self.move_map, 150, 2000, 300)
 
     def update(self):
