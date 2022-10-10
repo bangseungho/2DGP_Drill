@@ -2,13 +2,13 @@ import textwrap
 
 from pico2d import *
 
-open_canvas(800, 450)
-
+# global variable
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 450
 VELOCITY = 25
 MASS = 0.05
 running = True
+
 
 class Kirby:
     def __init__(self):
@@ -20,34 +20,51 @@ class Kirby:
         self.isJump = 0
         self.v = VELOCITY
         self.m = MASS
+        self.hit_box = True
+        self.frame = 0
 
-    def draw_image(self):
+    # draw player
+    def draw(self):
         self.idle.clip_draw(0, 0, 22, 20, self.posX, self.posY, 40, 36)
+        # hit_box
+        if self.hit_box:
+            draw_rectangle(player.posX - 22, player.posY - 20, player.posX + 22, player.posY + 20)
 
+    # move player
     def move(self):
         if stage.move_map == 0 or stage.move_map == 1200:
             self.posX += self.dx
 
-    def jump(self, j):
-        self.isJump = j
-
+    # player screen collider
     def check_screen(self):
         if self.posX + 22 > WINDOW_WIDTH or self.posX - 22 < 0:
             self.posX -= self.dx
         if self.posY + 20 > WINDOW_HEIGHT or self.posY - 20 < 0:
             self.posY -= self.dy
 
+    # jump flag
+    def jump(self, j):
+        # if isJump  == 1 -> jump
+        # if isJump  == 2 -> fly
+        self.isJump = j
+
+    # update player
     def update(self):
+        # move player
+        self.move()
+        self.check_screen()
+        # jump player
         if self.isJump > 0:
-            if self.isJump == 2:
+            if self.isJump == 2 and self.posY < WINDOW_HEIGHT - 20:
                 self.v = 0
                 self.posY += self.dy
                 self.posY -= 1.0
+            # FORCE = 1/2 * MASS * VELOCITY ** 2
             if self.v > 0:
-                F = (0.5 * self.m * (self.v ** 2))
+                FORCE = (0.5 * self.m * (self.v ** 2))
             else:
-                F = -(0.5 * self.m * (self.v ** 2))
-            self.posY += round(F)
+                FORCE = -(0.5 * self.m * (self.v ** 2))
+            self.posY += round(FORCE)
             self.v -= 1
             if self.posY < 100:
                 self.posY = 100
@@ -61,11 +78,11 @@ class stage:
         self.stage1_land = load_image("stage1_land.png")
         self.move_map = 0
 
-    def draw_image(self):
+    def draw(self):
         self.stage1_background.draw(WINDOW_WIDTH - 300 - self.move_map / 5, WINDOW_HEIGHT / 2, 1100, WINDOW_HEIGHT)
         self.stage1_land.draw(1000 - self.move_map, 150, 2000, 300)
 
-    def move(self):
+    def update(self):
         if 390 <= player.posX <= 410:
             self.move_map += player.dx
         if self.move_map < 0:
@@ -92,12 +109,16 @@ def handle_events():
                 player.dy += 2
             elif event.key == SDLK_DOWN:
                 player.dy -= 2
+            elif event.key == SDLK_h:
+                if player.hit_box:
+                    player.hit_box = False
+                elif not player.hit_box:
+                    player.hit_box = True
             elif event.key == SDLK_SPACE:
                 if player.isJump == 0:
                     player.jump(1)
                 elif player.isJump == 1:
                     player.jump(2)
-
             elif event.key == SDLK_ESCAPE:
                 running = False
         # --- key up events
@@ -115,24 +136,27 @@ def handle_events():
                     player.jump(1)
 
 
+open_canvas(800, 450)
+
+# initialization code
 player = Kirby()
 stage = stage()
 
+# game main loop code
 while running:
-    clear_canvas()
-
-    stage.draw_image()
-    player.draw_image()
-
+    # simulation
     handle_events()
-    draw_rectangle(player.posX - 22, player.posY - 20, player.posX + 22, player.posY + 20)
-
-    player.move()
-    stage.move()
-
     player.update()
-    player.check_screen()
+    stage.update()
+
+    # rendering
+    clear_canvas()
+    stage.draw()
+    player.draw()
 
     update_canvas()
+
     delay(0.01)
+
+# finalization code
 close_canvas()
