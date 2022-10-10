@@ -17,8 +17,8 @@ class Status(Enum):
     Idle = 0
     Work = 1
     Jump = 2
-    Take_off = 3
-    Land = 4
+    Fly = 3
+    Drop = 4
 
 
 class object:
@@ -68,15 +68,15 @@ class Kirby(object):
 
     # player screen collider
     def check_screen(self):
-        if self.posX + 22 > WINDOW_WIDTH or self.posX - 22 < 0:
+        if self.posX + player.width > WINDOW_WIDTH or self.posX - player.width < 0:
             self.posX -= self.dx
-        if self.posY + 20 > WINDOW_HEIGHT or self.posY - 20 < 0:
-            self.posY -= self.dy
+        if self.posY + player.height > WINDOW_HEIGHT:
+            self.posY = WINDOW_HEIGHT - player.height
 
     # jump flag
     def jump(self, j):
         # if isJump  == 1 -> jump
-        # if isJump  == 2 -> fly
+        # if isJump  == 2 -> Fly
         self.isJump = j
 
     def set_status(self, width, height, width_size, height_size, div_frame, image_bottom):
@@ -94,9 +94,9 @@ class Kirby(object):
             self.set_status(22, 20, 44, 40, 6, 0)
         elif self.status == Status.Jump:
             self.set_status(27, 22, 54, 44, 10, 40)
-        elif self.status == Status.Take_off:
+        elif self.status == Status.Fly:
             self.set_status(28, 27, 56, 54, 13, 84)
-        elif self.status == Status.Land:
+        elif self.status == Status.Drop:
             self.set_status(27, 24, 54, 48, 18, 138)
         elif self.status == Status.Work:
             self.set_status(23, 21, 46, 42, 10, 186)
@@ -111,7 +111,7 @@ class Kirby(object):
 
     def exception(self):
         # exception - if status is land
-        if self.status == Status.Land:
+        if self.status == Status.Drop:
             # When it falls to the floor, it rolls only once.
             if self.frame >= 15:
                 self.frame = 15
@@ -124,6 +124,18 @@ class Kirby(object):
                 if self.frame >= 8:
                     self.frame = 8
 
+    # Fly player
+    def flying(self):
+        if self.isJump == 2:
+            self.v = 0
+            self.posY += self.dy
+            self.posY -= 1.0
+            if self.frame == 5:
+                self.fly_flag = True
+            if self.fly_flag:
+                if self.frame <= 5:
+                    self.frame = 5
+
     # update player
     def update(self, m_t):
         # animation velocity
@@ -135,25 +147,16 @@ class Kirby(object):
         self.move()
         self.check_screen()
         self.exception()
-
         # move animation
+
         if self.current_time >= self.animation_time:
             self.current_time = 0
             self.frame = (self.frame + 1) % self.div_frame
 
+        self.flying()
+
         # jump player
         if self.isJump > 0:
-
-            # fly player
-            if self.isJump == 2 and self.posY < WINDOW_HEIGHT - 20:
-                self.v = 0
-                self.posY += self.dy
-                self.posY -= 1.0
-                if self.frame >= 5:
-                    self.fly_flag = True
-                if self.fly_flag:
-                    if self.frame <= 5:
-                        self.frame = 5
 
             # FORCE = 1/2 * MASS * VELOCITY ** 2
             if self.animating:
@@ -173,7 +176,7 @@ class Kirby(object):
                 self.isJump = 0
                 self.v = VELOCITY
                 self.collide_land = True
-                if self.status == Status.Land:
+                if self.status == Status.Drop:
                     self.frame = 7
                     self.jump(1)
                 if not self.animating:
@@ -239,7 +242,7 @@ def handle_events():
                     player.change_status(Status.Jump)
                 elif player.isJump == 1:
                     player.jump(2)
-                    player.change_status(Status.Take_off)
+                    player.change_status(Status.Fly)
             elif event.key == SDLK_ESCAPE:
                 running = False
         # --- key up events
@@ -259,7 +262,7 @@ def handle_events():
             elif event.key == SDLK_SPACE:
                 if player.isJump == 2:
                     player.jump(1)
-                    player.change_status(Status.Land)
+                    player.change_status(Status.Drop)
                     player.animating = True
 
 
