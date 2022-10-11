@@ -2,6 +2,8 @@ from pico2d import *
 from enum import Enum
 import pygame
 import time
+import datetime
+import math
 
 # global variable
 WINDOW_WIDTH = 800
@@ -14,6 +16,10 @@ FPS = 90
 VELOCITY = 25
 MASS = 0.04
 running = True
+start = False
+start_sec = 0
+end_sec = 0
+dash = False
 
 # Rect
 left = 0
@@ -29,7 +35,7 @@ class Status(Enum):
     Jump = 2
     Fly = 3
     Drop = 4
-    Run = 5
+    Dash = 5
 
 
 # object class
@@ -67,7 +73,7 @@ class Kirby(object):
     def draw(self):
         self.Kirby.clip_draw(self.frame * self.width, self.look_at_left * self.height + self.load_image_posY,
                              self.width, self.height, self.screen_posX, self.posY, self.width * 2, self.height * 2)
-        if admin: admin_key()
+        # if admin: admin_key()
 
     def exception(self):
         # exception - if status is land
@@ -139,8 +145,8 @@ class Kirby(object):
             self.set_status(27, 24, 18, 138)
         elif self.status == Status.Work:
             self.set_status(23, 21, 10, 186)
-        elif self.status == Status.Run:
-            self.set_status(25, 23, 8, 228)
+        elif self.status == Status.Dash:
+            self.set_status(26, 21, 8, 228)
 
     def check_screen(self):
         if self.rect[right] > WINDOW_WIDTH or self.rect[left] < 0:  # if player leaves the screen
@@ -233,9 +239,33 @@ class stage:
             self.land_posX += p.dx
 
 
+def measure_time():
+    global start_sec
+    global end_sec
+    global start
+    global dash
+
+    if not start:
+        start_sec = time.time()
+        start = True
+    elif start:
+        end_sec = time.time()
+        start = False
+
+    if end_sec - start_sec > 1.0:
+        return False
+
+    if not start:
+        p.dx += 3.2
+        print("dash!")
+        return True
+
+
+
 def handle_events():
     global running
     global admin
+    global start
     event_s = get_events()
 
     for event in event_s:
@@ -243,7 +273,10 @@ def handle_events():
         if event.type == SDL_KEYDOWN:
             if event.key == SDLK_RIGHT:
                 if p.posY == s.under_player:
-                    p.change_status(Status.Work)
+                    if measure_time():
+                        p.change_status(Status.Dash)
+                    else:
+                        p.change_status(Status.Work)
                 p.set_dir(3, 0, False)
             elif event.key == SDLK_LEFT:
                 if p.posY == s.under_player:
@@ -263,11 +296,15 @@ def handle_events():
             elif event.key == SDLK_ESCAPE:
                 running = False
             elif event.key == SDLK_o:
-                if admin: admin = False
-                else: admin = True
+                if admin:
+                    admin = False
+                else:
+                    admin = True
         elif event.type == SDL_KEYUP:
             if event.key == SDLK_RIGHT:
                 p.set_dir(-3, 0, p.look_at_left)
+                if p.status == Status.Dash:
+                    p.dx -= 3.2
                 if p.posY == s.under_player:
                     p.change_status(Status.Idle)
             elif event.key == SDLK_LEFT:
