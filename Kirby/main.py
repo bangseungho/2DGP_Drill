@@ -2,6 +2,7 @@ import pico2d
 from pico2d import *
 from enum import Enum
 import pygame
+import time
 
 # global variable
 WINDOW_WIDTH = 800
@@ -11,6 +12,8 @@ MASS = 0.04
 running = True
 clock = pygame.time.Clock()
 FPS = 90
+start = 0
+finish = 0
 
 
 class Status(Enum):
@@ -19,6 +22,7 @@ class Status(Enum):
     Jump = 2
     Fly = 3
     Drop = 4
+    Run = 5
 
 
 class object:
@@ -51,6 +55,7 @@ class Kirby(object):
         self.animating = False
         self.fly_flag = False
         self.collide_land = False
+        self.can_dash = False
 
     # draw player
     def draw(self):
@@ -65,6 +70,12 @@ class Kirby(object):
     def move(self):
         if stage.move_map == 0 or stage.move_map == 1200:
             self.posX += self.dx
+
+    def move_change_stat(self, dx, dy, look_at_left):
+        self.dx += dx
+        self.dy += dy
+        self.look_at_left = look_at_left
+
 
     # player screen collider
     def check_screen(self):
@@ -100,6 +111,8 @@ class Kirby(object):
             self.set_status(27, 24, 54, 48, 18, 138)
         elif self.status == Status.Work:
             self.set_status(23, 21, 46, 42, 10, 186)
+        elif self.status == Status.Run:
+            self.set_status(25, 23, 50, 46, 8, 228)
 
     def change_status(self, status):
         self.status = status
@@ -211,6 +224,8 @@ class stage(object):
 
 def handle_events():
     global running
+    global start
+    global finish
     event_s = get_events()
     for event in event_s:
         if event.type == SDL_QUIT:
@@ -220,13 +235,11 @@ def handle_events():
             if event.key == SDLK_RIGHT:
                 if player.posY == 100:
                     player.change_status(Status.Work)
-                player.dx += 3
-                player.look_at_left = False
+                player.move_change_stat(3, 0, False)
             elif event.key == SDLK_LEFT:
                 if player.posY == 100:
                     player.change_status(Status.Work)
-                player.dx -= 3
-                player.look_at_left = True
+                player.move_change_stat(-3, 0, True)
             elif event.key == SDLK_UP:
                 player.dy += 2
             elif event.key == SDLK_DOWN:
@@ -248,13 +261,14 @@ def handle_events():
         # --- key up events
         elif SDL_KEYUP == event.type:
             if event.key == SDLK_RIGHT:
+
+                player.move_change_stat(-3, 0, player.look_at_left)
                 if player.posY == 100:
                     player.change_status(Status.Idle)
-                player.dx -= 3
             elif event.key == SDLK_LEFT:
+                player.move_change_stat(3, 0, player.look_at_left)
                 if player.posY == 100:
                     player.change_status(Status.Idle)
-                player.dx += 3
             elif event.key == SDLK_UP:
                 player.dy -= 2
             elif event.key == SDLK_DOWN:
