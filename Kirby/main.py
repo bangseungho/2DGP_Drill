@@ -37,7 +37,7 @@ class object:
 class Kirby(object):
     def __init__(self):
         super().__init__(WINDOW_WIDTH / 2, 100, 22, 20, 0)
-        self.idle = load_image("resource/total.png")
+        self.idle = load_image("resource/Default_Kirby.png")
         self.dx = 0
         self.dy = 0
         self.isJump = 0
@@ -203,8 +203,8 @@ class Kirby(object):
 class stage(object):
     def __init__(self):
         super().__init__(WINDOW_WIDTH - 300, WINDOW_HEIGHT / 2, 1100, WINDOW_HEIGHT, 0)
-        self.stage1_background = load_image("stage1_background.png")
-        self.stage1_land = load_image("stage1_land.png")
+        self.stage1_background = load_image("resource/stage1_background.png")
+        self.stage1_land = load_image("resource/stage1_land.png")
         self.move_map = 0
 
     def draw(self):
