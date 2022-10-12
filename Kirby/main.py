@@ -20,6 +20,7 @@ start = False
 start_sec = 0
 end_sec = 0
 dash = False
+temp_look_at_left = None
 
 # Rect
 left = 0
@@ -36,6 +37,7 @@ class Status(Enum):
     Fly = 3
     Drop = 4
     Dash = 5
+    Suck = 6
 
 
 # object class
@@ -133,10 +135,10 @@ class Kirby(object):
         self.collide_land = False
 
     def check_status(self):
+        global dash
         if self.status == Status.Idle:
             self.set_status(22, 20, 6, 0)
-        elif self.status == Status.Idle:
-            self.set_status(22, 20, 6, 0)
+            dash = False
         elif self.status == Status.Jump:
             self.set_status(27, 22, 10, 40)
         elif self.status == Status.Fly:
@@ -147,6 +149,8 @@ class Kirby(object):
             self.set_status(23, 21, 10, 186)
         elif self.status == Status.Dash:
             self.set_status(26, 21, 8, 228)
+        elif self.status == Status.Suck:
+            self.set_status(25, 21, 5, 270)
 
     def check_screen(self):
         if self.rect[right] > WINDOW_WIDTH or self.rect[left] < 0:  # if player leaves the screen
@@ -196,7 +200,9 @@ class Kirby(object):
                     self.frame = 7
                     self.jump(1)
                 if not self.animating:
-                    if p.dx != 0:
+                    if dash:
+                        self.change_status(Status.Dash)
+                    elif p.dx != 0:
                         self.change_status(Status.Work)
                     else:
                         self.change_status(Status.Idle)
@@ -244,22 +250,30 @@ def measure_time():
     global end_sec
     global start
     global dash
+    global temp_look_at_left
 
     if not start:
+        temp_look_at_left = p.look_at_left
         start_sec = time.time()
         start = True
     elif start:
+        if temp_look_at_left != p.look_at_left:
+            start = False
+            return False
         end_sec = time.time()
         start = False
 
     if end_sec - start_sec > 1.0:
         return False
 
-    if not start:
-        p.dx += 3.2
+    if not start and end_sec - start_sec < 0.8:
+        dash = True
+        if not p.look_at_left:
+            p.set_dir(3.2, 0, p.look_at_left)
+        else:
+            p.set_dir(-3.2, 0, p.look_at_left)
         print("dash!")
         return True
-
 
 
 def handle_events():
@@ -280,7 +294,10 @@ def handle_events():
                 p.set_dir(3, 0, False)
             elif event.key == SDLK_LEFT:
                 if p.posY == s.under_player:
-                    p.change_status(Status.Work)
+                    if measure_time():
+                        p.change_status(Status.Dash)
+                    else:
+                        p.change_status(Status.Work)
                 p.set_dir(-3, 0, True)
             elif event.key == SDLK_UP:
                 p.set_dir(0, 3, p.look_at_left)
@@ -293,6 +310,8 @@ def handle_events():
                 elif p.isJump == 1:
                     p.jump(2)
                     p.change_status(Status.Fly)
+            elif event.key == SDLK_LCTRL:
+                p.change_status(Status.Suck)
             elif event.key == SDLK_ESCAPE:
                 running = False
             elif event.key == SDLK_o:
@@ -302,20 +321,19 @@ def handle_events():
                     admin = True
         elif event.type == SDL_KEYUP:
             if event.key == SDLK_RIGHT:
-                p.set_dir(-3, 0, p.look_at_left)
-                if p.status == Status.Dash:
-                    p.dx -= 3.2
+                p.dx = 0
                 if p.posY == s.under_player:
                     p.change_status(Status.Idle)
             elif event.key == SDLK_LEFT:
-                p.set_dir(3, 0, p.look_at_left)
+                p.dx = 0
                 if p.posY == s.under_player:
                     p.change_status(Status.Idle)
             elif event.key == SDLK_UP:
                 p.set_dir(0, -3, p.look_at_left)
             elif event.key == SDLK_DOWN:
                 p.set_dir(0, 2, p.look_at_left)
-
+            elif event.key == SDLK_LCTRL:
+                p.change_status(Status.Idle)
             elif event.key == SDLK_SPACE:
                 if p.isJump == 2:
                     p.jump(1)
