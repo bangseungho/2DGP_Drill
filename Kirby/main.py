@@ -202,9 +202,9 @@ class Kirby(object):
                 if not self.animating:
                     if dash:
                         self.change_status(Status.Dash)
-                    elif p.dx != 0:
+                    if p.dx != 0 and not dash:
                         self.change_status(Status.Work)
-                    else:
+                    elif not dash:
                         self.change_status(Status.Idle)
                         self.collide_land = False
 
@@ -253,52 +253,60 @@ def measure_time():
     global temp_look_at_left
 
     if not start:
-        temp_look_at_left = p.look_at_left
         start_sec = time.time()
         start = True
     elif start:
-        if temp_look_at_left != p.look_at_left:
-            start = False
-            return False
         end_sec = time.time()
         start = False
 
-    if end_sec - start_sec > 1.0:
-        return False
-
-    if not start and end_sec - start_sec < 0.8:
+    if not start and end_sec - start_sec < 0.1:
         dash = True
         if not p.look_at_left:
             p.set_dir(3.2, 0, p.look_at_left)
         else:
             p.set_dir(-3.2, 0, p.look_at_left)
-        print("dash!")
         return True
+    else:
+        return False
+
 
 
 def handle_events():
     global running
     global admin
     global start
+    global start_sec
+    global end_sec
+    global dash
     event_s = get_events()
 
     for event in event_s:
 
         if event.type == SDL_KEYDOWN:
+            end_sec = time.time()
+            if end_sec - start_sec > 0.2:
+                start = False
             if event.key == SDLK_RIGHT:
-                if p.posY == s.under_player:
-                    if measure_time():
-                        p.change_status(Status.Dash)
-                    else:
-                        p.change_status(Status.Work)
                 p.set_dir(3, 0, False)
-            elif event.key == SDLK_LEFT:
+                print(start)
+                print("temp", temp_look_at_left)
+                print("player", p.look_at_left)
                 if p.posY == s.under_player:
                     if measure_time():
                         p.change_status(Status.Dash)
                     else:
                         p.change_status(Status.Work)
+            elif event.key == SDLK_LEFT:
                 p.set_dir(-3, 0, True)
+                print(start)
+                print("temp",temp_look_at_left)
+                print("player", p.look_at_left)
+
+                if p.posY == s.under_player:
+                    if measure_time():
+                        p.change_status(Status.Dash)
+                    else:
+                        p.change_status(Status.Work)
             elif event.key == SDLK_UP:
                 p.set_dir(0, 3, p.look_at_left)
             elif event.key == SDLK_DOWN:
@@ -320,14 +328,17 @@ def handle_events():
                 else:
                     admin = True
         elif event.type == SDL_KEYUP:
+            start_sec = time.time()
             if event.key == SDLK_RIGHT:
                 p.dx = 0
                 if p.posY == s.under_player:
                     p.change_status(Status.Idle)
+                dash = False
             elif event.key == SDLK_LEFT:
                 p.dx = 0
                 if p.posY == s.under_player:
                     p.change_status(Status.Idle)
+                dash = False
             elif event.key == SDLK_UP:
                 p.set_dir(0, -3, p.look_at_left)
             elif event.key == SDLK_DOWN:
