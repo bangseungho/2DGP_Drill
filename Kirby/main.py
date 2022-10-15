@@ -61,6 +61,15 @@ class Kirby(object):
         super().__init__(WINDOW_WIDTH / 2, 100, 22, 20, 0, 6)
         self.rect = None
         self.Kirby = load_image("resource/Default_Kirby.png")
+        self.Life = load_image("resource/life_hud.png")
+        self.Life_0 = load_image("resource/0_hud.png")
+        self.Life_1 = load_image("resource/1_hud.png")
+        self.Life_2 = load_image("resource/2_hud.png")
+        self.Hp = load_image("resource/hp_hud.png")
+        self.Life_x = load_image("resource/x_hud.png")
+        self.breath = load_image("resource/breath.png")
+        self.lifes = 2
+        self.hps = 6
         self.dx = 0
         self.dy = 0
         self.screen_posX = 400
@@ -75,14 +84,44 @@ class Kirby(object):
         self.fly_flag = False
         self.suck_flag = False
         self.work_flag = True
+        self.breath_flag = False
         self.status = Status.Idle
         self.L_suck_range = None
         self.R_suck_range = None
         self.on_the_ob = False
+        self.breath_posX = None
+        self.breath_posY = None
+        self.breath_frame = 0
 
     def draw(self):
         self.Kirby.clip_draw(self.frame * self.width, self.look_at_left * self.height + self.load_image_posY,
                              self.width, self.height, self.screen_posX, self.posY, self.width * 2, self.height * 2)
+
+        if self.breath_flag:
+            if not self.look_at_left:
+                self.breath.clip_draw(self.breath_frame * 32, 0, 32, 21, p.breath_posX + 20 + self.breath_frame * 5, p.breath_posY)
+            else:
+                self.breath.clip_draw(self.breath_frame * 32, 21, 32, 21, p.breath_posX - 20 - self.breath_frame * 5, p.breath_posY)
+            if self.breath_frame == 5:
+                self.breath_flag = False
+
+        self.Life.draw(40, 420, 32, 25)
+
+        self.Life_x.draw(69, 419, 15.5, 16)
+
+        if self.lifes == 2:
+            self.Life_0.draw(90, 420, 16, 22)
+            self.Life_2.draw(106, 420, 16, 22)
+        if self.lifes == 1:
+            self.Life_0.draw(90, 420, 16, 22)
+            self.Life_1.draw(106, 420, 16, 22)
+        if self.lifes == 0:
+            self.Life_0.draw(90, 420, 16, 22)
+            self.Life_0.draw(106, 420, 16, 22)
+
+        for hp in range(self.hps):
+            self.Hp.draw(130 + hp * 18, 420, 18, 29.5)
+
         if admin: admin_key()
 
     def exception(self):
@@ -158,6 +197,7 @@ class Kirby(object):
             self.set_status(27, 22, 10, 40)
             self.on_the_ob = False
         elif self.status == Status.Fly:
+            self.fly_flag = True
             self.set_status(28, 27, 13, 84)
         elif self.status == Status.Drop:
             self.set_status(27, 24, 18, 138)
@@ -176,26 +216,22 @@ class Kirby(object):
             if self.rect[left] <= ob[right] and self.rect[right] >= ob[left] and self.rect[bottom] <= ob[top] and self.rect[top] >= ob[bottom]:
                 cr_ob = ob
 
-
-                if self.rect[bottom] <= ob[bottom]:
-                    if self.rect[right] >= ob[left]:
-                        p.posX -= 1
-                    p.dx = 0
+                if self.rect[right] >= ob[left] and self.rect[left] <= ob[right]:
+                    if self.rect[bottom] + 5 <= ob[top]:
+                        self.dx = 0
 
                 if self.rect[bottom] >= cr_ob[top] - 10:
                     self.on_the_ob = True
                     self.posY = cr_ob[top] + 20
                     s.under_player = cr_ob[top] + 20
-                    print("collider!")
         if self.rect[right] <= cr_ob[left] or self.rect[left] >= cr_ob[right]:
             s.under_player = 100
             if self.on_the_ob:
                 if self.posY != s.under_player and self.status != Status.Drop:
-                    self.posY -= 5
+                    if not self.fly_flag:
+                        self.posY -= 5
                 elif self.posY == 100:
                     self.on_the_ob = False
-
-            print("Yes")
         if self.rect[right] > WINDOW_WIDTH or self.rect[left] < 0:  # if player leaves the screen
             self.screen_posX -= self.dx
             self.posX -= self.dx
@@ -216,6 +252,7 @@ class Kirby(object):
         if self.current_time >= self.animation_time:
             self.current_time = 0
             self.frame = (self.frame + 1) % self.div_frame
+            self.breath_frame = (self.breath_frame + 1) % 6
 
         self.flying()
         self.sucktion()
@@ -272,7 +309,7 @@ class stage:
         self.under_player = 100
 
         self.obstacles = [[555, 79, 610, 110], [1065, 79, 1250, 110], [1390, 79, 2000, 110],
-                          [1580, 110, 1665, 180], [1580, 180, 1630, 240]]
+                          [1580, 110, 1630, 240], [1630, 110, 1665, 180]]
 
     def draw(self):
         self.stage1_background.draw(self.bg_posX, self.bg_posY, self.bg_width, self.bg_height)
@@ -326,7 +363,6 @@ def measure_time():
         return False
 
 
-
 def handle_events():
     global running
     global admin
@@ -344,9 +380,6 @@ def handle_events():
                 start = False
             if event.key == SDLK_RIGHT:
                 p.set_dir(3, 0, False)
-                print(start)
-                print("temp", temp_look_at_left)
-                print("player", p.look_at_left)
                 if p.posY == s.under_player:
                     if measure_time():
                         p.change_status(Status.Dash)
@@ -354,9 +387,6 @@ def handle_events():
                         p.change_status(Status.Work)
             elif event.key == SDLK_LEFT:
                 p.set_dir(-3, 0, True)
-                print(start)
-                print("temp", temp_look_at_left)
-                print("player", p.look_at_left)
 
                 if p.posY == s.under_player:
                     if measure_time():
@@ -412,17 +442,19 @@ def handle_events():
                 else:
                     p.change_status(Status.Idle)
             elif event.key == SDLK_SPACE:
+                p.breath_posX = p.screen_posX
+                p.breath_posY = p.posY
                 if p.isJump == 2:
                     p.jump(1)
                     p.change_status(Status.Drop)
                     p.animating = True
+                    p.breath_flag = True
+                    p.breath_frame = 0
 
 
 def admin_key():
     if p.dx != 0:
-        print("p.posX = ", p.posX)
-        print("p.posY = ", p.posY)
-        print("p.screen_posX = ", p.screen_posX)
+        print(p.status)
     draw_rectangle(p.screen_posX - p.width, p.rect[bottom], p.screen_posX + p.width, p.rect[top])
     if p.suck_flag:
         if p.look_at_left:
