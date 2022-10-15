@@ -5,6 +5,8 @@ import time
 import datetime
 import math
 
+from pygame.draw import rect
+
 # global variable
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 450
@@ -21,6 +23,7 @@ start_sec = 0
 end_sec = 0
 dash = False
 temp_look_at_left = None
+cr_ob = [0, 0, 0, 0]
 
 # Rect
 left = 0
@@ -70,12 +73,17 @@ class Kirby(object):
         self.animating = False
         self.collide_land = False
         self.fly_flag = False
+        self.suck_flag = False
+        self.work_flag = True
         self.status = Status.Idle
+        self.L_suck_range = None
+        self.R_suck_range = None
+        self.on_the_ob = False
 
     def draw(self):
         self.Kirby.clip_draw(self.frame * self.width, self.look_at_left * self.height + self.load_image_posY,
                              self.width, self.height, self.screen_posX, self.posY, self.width * 2, self.height * 2)
-        # if admin: admin_key()
+        if admin: admin_key()
 
     def exception(self):
         # exception - if status is land
@@ -97,6 +105,8 @@ class Kirby(object):
         self.screen_posX += self.dx  # player position on the screen : we can see
         self.rect = (self.screen_posX - self.width, self.posY - self.height,
                      self.screen_posX + self.width, self.posY + self.height)  # player's rect [left, bottom, right, top]
+        self.L_suck_range = (self.rect[left], self.rect[bottom], self.rect[left] - 60, self.rect[top])
+        self.R_suck_range = (self.rect[right], self.rect[bottom], self.rect[right] + 60, self.rect[top])
 
     def jump(self, j):
         # if isJump  == 1 -> jump
@@ -109,11 +119,14 @@ class Kirby(object):
             self.v = 0
             self.posY += self.dy
             self.posY -= 0.8
-            if self.frame == 5:
-                self.fly_flag = True
-            if self.fly_flag:
-                if self.frame <= 5:
-                    self.frame = 5
+            if self.frame == 12:
+                self.frame = 5
+
+    def sucktion(self):
+        if self.suck_flag:
+            self.dx = 0
+            if self.frame == 4:
+                self.frame = 2
 
     def set_dir(self, dx, dy, look_at_left):
         self.dx += dx
@@ -139,20 +152,50 @@ class Kirby(object):
         if self.status == Status.Idle:
             self.set_status(22, 20, 6, 0)
             dash = False
+            self.suck_flag = False
+            self.work_flag = False
         elif self.status == Status.Jump:
             self.set_status(27, 22, 10, 40)
+            self.on_the_ob = False
         elif self.status == Status.Fly:
             self.set_status(28, 27, 13, 84)
         elif self.status == Status.Drop:
             self.set_status(27, 24, 18, 138)
         elif self.status == Status.Work:
+            self.work_flag = True
             self.set_status(23, 21, 10, 186)
         elif self.status == Status.Dash:
             self.set_status(26, 21, 8, 228)
         elif self.status == Status.Suck:
             self.set_status(25, 21, 5, 270)
+            self.suck_flag = True
 
     def check_screen(self):
+        global cr_ob
+        for ob in s.obstacles:
+            if self.rect[left] <= ob[right] and self.rect[right] >= ob[left] and self.rect[bottom] <= ob[top] and self.rect[top] >= ob[bottom]:
+                cr_ob = ob
+
+
+                if self.rect[bottom] <= ob[bottom]:
+                    if self.rect[right] >= ob[left]:
+                        p.posX -= 1
+                    p.dx = 0
+
+                if self.rect[bottom] >= cr_ob[top] - 10:
+                    self.on_the_ob = True
+                    self.posY = cr_ob[top] + 20
+                    s.under_player = cr_ob[top] + 20
+                    print("collider!")
+        if self.rect[right] <= cr_ob[left] or self.rect[left] >= cr_ob[right]:
+            s.under_player = 100
+            if self.on_the_ob:
+                if self.posY != s.under_player and self.status != Status.Drop:
+                    self.posY -= 5
+                elif self.posY == 100:
+                    self.on_the_ob = False
+
+            print("Yes")
         if self.rect[right] > WINDOW_WIDTH or self.rect[left] < 0:  # if player leaves the screen
             self.screen_posX -= self.dx
             self.posX -= self.dx
@@ -175,6 +218,7 @@ class Kirby(object):
             self.frame = (self.frame + 1) % self.div_frame
 
         self.flying()
+        self.sucktion()
 
         # jump player
         if self.isJump > 0:
@@ -199,12 +243,12 @@ class Kirby(object):
                 if self.status == Status.Drop:
                     self.frame = 7
                     self.jump(1)
-                if not self.animating:
+                if not self.animating and not p.suck_flag:
                     if dash:
                         self.change_status(Status.Dash)
                     if p.dx != 0 and not dash:
                         self.change_status(Status.Work)
-                    elif not dash:
+                    elif not dash and not self.suck_flag:
                         self.change_status(Status.Idle)
                         self.collide_land = False
 
@@ -227,13 +271,21 @@ class stage:
 
         self.under_player = 100
 
+        self.obstacles = [[555, 79, 610, 110], [1065, 79, 1250, 110], [1390, 79, 2000, 110],
+                          [1580, 110, 1665, 180], [1580, 180, 1630, 240]]
+
     def draw(self):
         self.stage1_background.draw(self.bg_posX, self.bg_posY, self.bg_width, self.bg_height)
         self.stage1_land.draw(self.land_posX, self.land_posY, self.land_width, self.land_height)
 
     def move(self):
-        self.bg_posX -= p.dx / 5
-        self.land_posX -= p.dx
+        if -200 < self.land_posX <= 1000:
+            self.bg_posX -= p.dx / 5
+            self.land_posX -= p.dx
+
+            for ob in self.obstacles:
+                ob[0] -= p.dx
+                ob[2] -= p.dx
 
     def update(self):
         self.move()
@@ -243,6 +295,10 @@ class stage:
         if p.posX <= max_scroll_left or p.posX >= max_scroll_right:
             self.bg_posX += p.dx / 5
             self.land_posX += p.dx
+
+            for ob in self.obstacles:
+                ob[0] += p.dx
+                ob[2] += p.dx
 
 
 def measure_time():
@@ -299,7 +355,7 @@ def handle_events():
             elif event.key == SDLK_LEFT:
                 p.set_dir(-3, 0, True)
                 print(start)
-                print("temp",temp_look_at_left)
+                print("temp", temp_look_at_left)
                 print("player", p.look_at_left)
 
                 if p.posY == s.under_player:
@@ -330,12 +386,14 @@ def handle_events():
         elif event.type == SDL_KEYUP:
             start_sec = time.time()
             if event.key == SDLK_RIGHT:
+                p.work_flag = False
                 p.dx = 0
                 if p.posY == s.under_player:
                     p.change_status(Status.Idle)
                 dash = False
             elif event.key == SDLK_LEFT:
                 p.dx = 0
+                p.work_flag = False
                 if p.posY == s.under_player:
                     p.change_status(Status.Idle)
                 dash = False
@@ -344,7 +402,15 @@ def handle_events():
             elif event.key == SDLK_DOWN:
                 p.set_dir(0, 2, p.look_at_left)
             elif event.key == SDLK_LCTRL:
-                p.change_status(Status.Idle)
+                p.suck_flag = False
+                if p.work_flag and p.posY == s.under_player:
+                    p.change_status(Status.Work)
+                    if p.look_at_left:
+                        p.set_dir(-3, 0, True)
+                    else:
+                        p.set_dir(3, 0, False)
+                else:
+                    p.change_status(Status.Idle)
             elif event.key == SDLK_SPACE:
                 if p.isJump == 2:
                     p.jump(1)
@@ -358,6 +424,15 @@ def admin_key():
         print("p.posY = ", p.posY)
         print("p.screen_posX = ", p.screen_posX)
     draw_rectangle(p.screen_posX - p.width, p.rect[bottom], p.screen_posX + p.width, p.rect[top])
+    if p.suck_flag:
+        if p.look_at_left:
+            draw_rectangle(p.L_suck_range[0], p.L_suck_range[1], p.L_suck_range[2], p.L_suck_range[3])
+        else:
+            draw_rectangle(p.R_suck_range[0], p.R_suck_range[1], p.R_suck_range[2], p.R_suck_range[3])
+    draw_rectangle(0, 0, 800, 79)
+
+    for ob in s.obstacles:
+        draw_rectangle(ob[0], ob[1], ob[2], ob[3])
 
 
 open_canvas(WINDOW_WIDTH, WINDOW_HEIGHT)
