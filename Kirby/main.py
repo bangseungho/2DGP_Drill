@@ -2,6 +2,7 @@ from pico2d import *
 from enum import Enum
 import pygame
 import time
+import random
 import datetime
 import math
 
@@ -41,6 +42,10 @@ class Status(Enum):
     Drop = 4
     Dash = 5
     Suck = 6
+    Attack = 7
+    Sucked = 8
+    Bite = 9
+    Spit = 10
 
 
 # object class
@@ -53,6 +58,15 @@ class object:
         self.load_image_posY = load_image_posY
         self.frame = 0
         self.div_frame = div_frame
+        self.current_time = 0
+        self.animation_time = 0
+        self.look_at_left = False
+
+    def set_status(self, width, height, div_frame, load_image_posY):
+        self.width = width
+        self.height = height
+        self.div_frame = div_frame
+        self.load_image_posY = load_image_posY
 
 
 # kirby class
@@ -68,19 +82,19 @@ class Kirby(object):
         self.Hp = load_image("resource/hp_hud.png")
         self.Life_x = load_image("resource/x_hud.png")
         self.breath = load_image("resource/breath.png")
+        self.spit_effect = load_image("resource/spit.png")
+        self.spit_star = load_image("resource/spit_star.png")
         self.lifes = 2
         self.hps = 6
         self.dx = 0
         self.dy = 0
         self.screen_posX = 400
-        self.current_time = 0
-        self.animation_time = 0
-        self.look_at_left = False
         self.v = 25
         self.m = 0.04
         self.isJump = 0
         self.animating = False
         self.collide_land = False
+        self.invincible = False
         self.fly_flag = False
         self.suck_flag = False
         self.work_flag = True
@@ -92,18 +106,40 @@ class Kirby(object):
         self.breath_posX = None
         self.breath_posY = None
         self.breath_frame = 0
+        self.spit_frame = 0
+        self.spit_star_frame = 0
+        self.bite_flag = False
+        self.spit_flag = False
+        self.spit_posX = 0
+        self.spit_posY = 0
+        self.look_at_left_effect = False
 
     def draw(self):
         self.Kirby.clip_draw(self.frame * self.width, self.look_at_left * self.height + self.load_image_posY,
                              self.width, self.height, self.screen_posX, self.posY, self.width * 2, self.height * 2)
 
         if self.breath_flag:
-            if not self.look_at_left:
-                self.breath.clip_draw(self.breath_frame * 32, 0, 32, 21, p.breath_posX + 20 + self.breath_frame * 5, p.breath_posY)
+            if not self.look_at_left_effect:
+                self.breath.clip_draw(self.breath_frame * 33, 0, 32, 19, p.breath_posX + 20 + self.breath_frame * 2,
+                                      p.breath_posY)
             else:
-                self.breath.clip_draw(self.breath_frame * 32, 21, 32, 21, p.breath_posX - 20 - self.breath_frame * 5, p.breath_posY)
-            if self.breath_frame == 5:
+                self.breath.clip_draw(self.breath_frame * 33, 19, 32, 19, p.breath_posX - 20 - self.breath_frame * 2,
+                                      p.breath_posY)
+            if self.breath_frame == 8:
                 self.breath_flag = False
+
+        if self.spit_flag:
+            self.spit_posX += 5
+            if not self.look_at_left_effect:
+                self.spit_effect.clip_draw(self.spit_frame * 16, self.look_at_left * 16,
+                                        16, 16, self.screen_posX + self.spit_posX, self.spit_posY, 32, 32)
+                self.spit_star.clip_draw(self.spit_star_frame * 37, self.look_at_left * 37,
+                                        37, 37, 30 + self.screen_posX + self.spit_posX, self.spit_posY, 37, 37)
+            else:
+                self.spit_effect.clip_draw(self.spit_frame * 16, self.look_at_left * 16,
+                                           16, 16, self.screen_posX - self.spit_posX, self.spit_posY, 32, 32)
+                self.spit_star.clip_draw(self.spit_star_frame * 37, self.look_at_left * 37,
+                                         37, 37, -30 + self.screen_posX - self.spit_posX, self.spit_posY, 37, 37)
 
         self.Life.draw(40, 420, 32, 25)
 
@@ -139,6 +175,11 @@ class Kirby(object):
                 if self.frame >= 8:
                     self.frame = 8
 
+        if self.status == Status.Jump and self.bite_flag:
+            if self.frame == 7:
+                self.change_status(Status.Idle)
+
+
     def move(self):
         self.posX += self.dx  # player position X on the game world
         self.screen_posX += self.dx  # player position on the screen : we can see
@@ -162,21 +203,18 @@ class Kirby(object):
                 self.frame = 5
 
     def sucktion(self):
-        if self.suck_flag:
+        if self.suck_flag and not self.bite_flag:
             self.dx = 0
             if self.frame == 4:
                 self.frame = 2
+
+    def spit(self):
+        pass
 
     def set_dir(self, dx, dy, look_at_left):
         self.dx += dx
         self.dy += dy
         self.look_at_left = look_at_left
-
-    def set_status(self, width, height, div_frame, load_image_posY):
-        self.width = width
-        self.height = height
-        self.div_frame = div_frame
-        self.load_image_posY = load_image_posY
 
     def change_status(self, status):
         self.status = status
@@ -188,13 +226,20 @@ class Kirby(object):
 
     def check_status(self):
         global dash
+        global MASS
         if self.status == Status.Idle:
-            self.set_status(22, 20, 6, 0)
+            if self.bite_flag:
+                self.set_status(25, 22, 6, 312)
+            else:
+                self.set_status(22, 20, 6, 0)
             dash = False
             self.suck_flag = False
             self.work_flag = False
         elif self.status == Status.Jump:
-            self.set_status(27, 22, 10, 40)
+            if self.bite_flag:
+                self.set_status(31, 29, 8, 408)
+            else:
+                self.set_status(27, 22, 10, 40)
             self.on_the_ob = False
         elif self.status == Status.Fly:
             self.fly_flag = True
@@ -203,24 +248,34 @@ class Kirby(object):
             self.set_status(27, 24, 18, 138)
         elif self.status == Status.Work:
             self.work_flag = True
-            self.set_status(23, 21, 10, 186)
+            if self.bite_flag:
+                self.set_status(26, 26, 16, 356)
+            else:
+                self.set_status(23, 21, 10, 186)
         elif self.status == Status.Dash:
             self.set_status(26, 21, 8, 228)
         elif self.status == Status.Suck:
             self.set_status(25, 21, 5, 270)
             self.suck_flag = True
+        elif self.status == Status.Bite:
+            self.bite_flag = True
+            self.set_status(25, 22, 6, 312)
+        elif self.status == Status.Spit:
+            self.spit_flag = True
+            self.set_status(24, 22, 5, 466)
 
     def check_screen(self):
         global cr_ob
         for ob in s.obstacles:
-            if self.rect[left] <= ob[right] and self.rect[right] >= ob[left] and self.rect[bottom] <= ob[top] and self.rect[top] >= ob[bottom]:
+            if self.rect[left] <= ob[right] and self.rect[right] >= ob[left] and self.rect[bottom] <= ob[top] and \
+                    self.rect[top] >= ob[bottom]:
                 cr_ob = ob
 
                 if self.rect[right] >= ob[left] and self.rect[left] <= ob[right]:
-                    if self.rect[bottom] + 5 <= ob[top]:
+                    if self.rect[bottom] + 8 <= ob[top]:
                         self.dx = 0
 
-                if self.rect[bottom] >= cr_ob[top] - 10:
+                if self.rect[bottom] >= cr_ob[top] - 20:
                     self.on_the_ob = True
                     self.posY = cr_ob[top] + 20
                     s.under_player = cr_ob[top] + 20
@@ -242,7 +297,13 @@ class Kirby(object):
 
     def update(self, ms):
         self.animation_time = round(100 / (self.div_frame * 100), 2)
-        self.current_time += ms
+
+        if self.status == Status.Spit:
+            self.current_time += ms * 2.5
+        elif self.status == Status.Suck:
+            self.current_time += ms * 2
+        else:
+            self.current_time += ms
         self.check_status()
         self.move()
 
@@ -252,10 +313,18 @@ class Kirby(object):
         if self.current_time >= self.animation_time:
             self.current_time = 0
             self.frame = (self.frame + 1) % self.div_frame
-            self.breath_frame = (self.breath_frame + 1) % 6
+            self.breath_frame = (self.breath_frame + 1) % 9
+            self.spit_frame = (self.spit_frame + 1) % 3
+            self.spit_star_frame = (self.spit_frame + 1) % 6
+
+        if self.bite_flag and self.status == Status.Spit:
+            if self.frame == 4:
+                self.bite_flag = False
+                self.change_status(Status.Idle)
 
         self.flying()
         self.sucktion()
+        self.spit()
 
         # jump player
         if self.isJump > 0:
@@ -285,9 +354,177 @@ class Kirby(object):
                         self.change_status(Status.Dash)
                     if p.dx != 0 and not dash:
                         self.change_status(Status.Work)
-                    elif not dash and not self.suck_flag:
+                    elif not dash and not self.suck_flag and not self.bite_flag:
                         self.change_status(Status.Idle)
                         self.collide_land = False
+
+
+class enemy(object):
+    pass
+
+
+class e_spark(enemy):
+    def __init__(self):
+        super().__init__(1000, 100, 24, 19, 0, 4)
+        self.rect = None
+        self.spark_enemy = load_image("resource/spark_enemy.png")
+        self.dx = -1
+        self.dy = 0.8
+        self.rect = [0, 0, 0, 0]
+        self.status = 0
+        self.cnt = 0
+        self.randValue = 0
+        self.time_start = 0
+        self.time_finish = 0
+        self.length_to_player = 0
+        self.cool_time_start = 0
+        self.cool_time_finish = 0
+        self.sucked_flag = False
+        self.death = False
+
+    def check_status(self):
+        if self.status == Status.Work:
+            if self.look_at_left:
+                self.dx = 1
+            else:
+                self.dx = -1
+            self.set_status(24, 19, 4, 0)
+        elif self.status == Status.Attack:
+            self.set_status(64, 64, 15, 38)
+        elif self.status == Status.Sucked:
+            self.set_status(24, 16, 1, 166)
+
+    def jump(self):
+        if self.posY >= 130:
+            self.dy *= -1
+        elif self.posY == 100:
+            self.status = Status.Work
+            self.randValue = random.randint(100, 300)
+
+    def Work(self):
+        self.cnt += 1
+        if self.cnt >= self.randValue:
+            self.cnt = 0
+            self.status = Status.Jump
+            self.dy = 1
+
+    def trace(self):
+        if self.length_to_player <= 130 and self.posY == p.posY:
+            if self.posX >= p.screen_posX:
+                self.dx = -1
+                self.look_at_left = False
+            else:
+                self.dx = 1
+                self.look_at_left = True
+
+    def attack(self):
+        if self.status == Status.Attack:
+            self.dx = 0
+        if self.length_to_player <= 60 and self.posY == p.posY and self.status != Status.Attack:
+            self.status = Status.Attack
+            self.set_status(64, 64, 15, 38)
+        if self.frame == 14 and self.status == Status.Attack:
+            self.status = Status.Work
+            self.set_status(24, 19, 4, 0)
+            self.frame = 0
+            self.cool_time_start = time.time()
+
+    def change_status(self, status):
+        self.status = status
+        self.frame = 0
+
+    def move(self):
+        self.posX += self.dx
+
+        if e_spark.length_to_player <= 10 and e_spark.sucked_flag:
+            p.change_status(Status.Bite)
+            self.change_status(Status.Sucked)
+            e_spark.death = True
+
+        self.length_to_player = abs(p.screen_posX - self.posX)
+        print(self.length_to_player)
+
+        self.trace()
+
+        if p.suck_flag:
+            if p.R_suck_range[right] >= self.rect[left] and p.R_suck_range[left] <= self.rect[right] and \
+                    p.R_suck_range[top] >= self.rect[bottom] and p.R_suck_range[bottom] <= self.rect[top] \
+                    and not p.look_at_left:
+                print("sucked!!!")
+                self.posX -= 3
+                self.change_status(Status.Sucked)
+                self.look_at_left = False
+                if p.posY >= self.posY:
+                    self.posY += 1
+                self.sucked_flag = True
+
+            elif self.rect[right] >= p.L_suck_range[right] and self.rect[left] <= p.L_suck_range[left] and \
+                    self.rect[top] >= p.L_suck_range[bottom] and self.rect[bottom] <= p.L_suck_range[top] \
+                    and p.look_at_left:
+                print("sucked!!!")
+                self.posX += 3
+                self.change_status(Status.Sucked)
+                self.look_at_left = True
+                if p.posY >= self.posY:
+                    self.posY += 1
+                self.sucked_flag = True
+
+        if self.cool_time_finish - self.cool_time_start >= 3 and not self.sucked_flag:
+            self.attack()
+
+        if self.status == Status.Jump:
+            self.posY += self.dy
+
+        if self.status == Status.Jump:
+            self.jump()
+        if self.status == Status.Work:
+            self.Work()
+
+        self.rect = (self.posX - self.width, self.posY - self.height,
+                     self.posX + self.width, self.posY + self.height)
+
+        for ob in s.obstacles:
+            if self.rect[left] <= ob[right] and self.rect[right] >= ob[left] and self.rect[bottom] <= ob[top] and \
+                    self.rect[top] >= ob[bottom]:
+                self.dx *= -1
+                if self.look_at_left:
+                    self.look_at_left = False
+                else:
+                    self.look_at_left = True
+
+        if self.rect[left] <= p.rect[right] and self.rect[right] >= p.rect[left] and self.rect[bottom] <= p.rect[top] \
+                and self.rect[top] >= p.rect[bottom] and not p.invincible and not self.sucked_flag:
+
+            if self.frame >= 10:
+                p.hps -= 2
+                p.invincible = True
+            elif self.status != Status.Attack:
+                p.hps -= 1
+                p.invincible = True
+
+            if p.hps <= 0:
+                p.lifes -= 1
+                p.hps = 6
+            self.time_start = time.time()
+
+    def draw(self):
+        self.spark_enemy.clip_draw(self.frame * self.width, self.load_image_posY + self.look_at_left * self.height,
+                                   self.width, self.height, self.posX, self.posY, self.width * 2, self.height * 2)
+
+    def update(self, ms):
+        self.time_finish = time.time()
+        self.cool_time_finish = time.time()
+        if p.invincible:
+            if self.time_finish - self.time_start >= 3:  # 적에게 맞으면 3초간 무적
+                p.invincible = False
+        self.check_status()
+        self.move()
+        self.animation_time = round(100 / (self.div_frame * 100), 2)
+        self.current_time += ms
+
+        if self.current_time >= self.animation_time:
+            self.current_time = 0
+            self.frame = (self.frame + 1) % self.div_frame
 
 
 # stage class
@@ -319,6 +556,7 @@ class stage:
         if -200 < self.land_posX <= 1000:
             self.bg_posX -= p.dx / 5
             self.land_posX -= p.dx
+            e_spark.posX -= p.dx
 
             for ob in self.obstacles:
                 ob[0] -= p.dx
@@ -332,6 +570,7 @@ class stage:
         if p.posX <= max_scroll_left or p.posX >= max_scroll_right:
             self.bg_posX += p.dx / 5
             self.land_posX += p.dx
+            e_spark.posX += p.dx
 
             for ob in self.obstacles:
                 ob[0] += p.dx
@@ -352,7 +591,7 @@ def measure_time():
         end_sec = time.time()
         start = False
 
-    if not start and end_sec - start_sec < 0.1:
+    if not start and end_sec - start_sec < 0.1 and not p.bite_flag:
         dash = True
         if not p.look_at_left:
             p.set_dir(3.2, 0, p.look_at_left)
@@ -401,11 +640,16 @@ def handle_events():
                 if p.isJump == 0:
                     p.jump(1)
                     p.change_status(Status.Jump)
-                elif p.isJump == 1:
+                elif p.isJump == 1 and not p.bite_flag:
                     p.jump(2)
                     p.change_status(Status.Fly)
             elif event.key == SDLK_LCTRL:
-                p.change_status(Status.Suck)
+                if p.bite_flag:
+                    p.change_status(Status.Spit)
+                    p.spit_posY = p.posY
+                    p.look_at_left_effect = p.look_at_left
+                else:
+                    p.change_status(Status.Suck)
             elif event.key == SDLK_ESCAPE:
                 running = False
             elif event.key == SDLK_o:
@@ -432,14 +676,13 @@ def handle_events():
             elif event.key == SDLK_DOWN:
                 p.set_dir(0, 2, p.look_at_left)
             elif event.key == SDLK_LCTRL:
+                if e_spark.sucked_flag:
+                    e_spark.change_status(Status.Work)
+                e_spark.sucked_flag = False
                 p.suck_flag = False
                 if p.work_flag and p.posY == s.under_player:
                     p.change_status(Status.Work)
-                    if p.look_at_left:
-                        p.set_dir(-3, 0, True)
-                    else:
-                        p.set_dir(3, 0, False)
-                else:
+                elif not p.bite_flag:
                     p.change_status(Status.Idle)
             elif event.key == SDLK_SPACE:
                 p.breath_posX = p.screen_posX
@@ -450,11 +693,13 @@ def handle_events():
                     p.animating = True
                     p.breath_flag = True
                     p.breath_frame = 0
+                    p.look_at_left_effect = p.look_at_left
 
 
 def admin_key():
     if p.dx != 0:
         print(p.status)
+        print(p.posX)
     draw_rectangle(p.screen_posX - p.width, p.rect[bottom], p.screen_posX + p.width, p.rect[top])
     if p.suck_flag:
         if p.look_at_left:
@@ -466,12 +711,16 @@ def admin_key():
     for ob in s.obstacles:
         draw_rectangle(ob[0], ob[1], ob[2], ob[3])
 
+    if not e_spark.death:
+        draw_rectangle(e_spark.rect[left], e_spark.rect[bottom], e_spark.rect[right], e_spark.rect[top])
+
 
 open_canvas(WINDOW_WIDTH, WINDOW_HEIGHT)
 
 # initialization code
 p = Kirby()
 s = stage()
+e_spark = e_spark()
 
 # game main loop code
 while running:
@@ -480,12 +729,19 @@ while running:
 
     handle_events()
     p.update(m_t)
+
+    if not e_spark.death:
+        e_spark.update(m_t)
     s.update()
 
     # rendering
     clear_canvas()
+
     s.draw()
     p.draw()
+
+    if not e_spark.death:
+        e_spark.draw()
 
     update_canvas()
 
