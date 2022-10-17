@@ -2,6 +2,7 @@ from pico2d import *
 import game_framework
 import play_state
 import title_state
+import boy_grass_object
 
 image = None
 
@@ -69,11 +70,10 @@ def handle_events():
                 case pico2d.SDLK_ESCAPE:
                     game_framework.pop_state()
                 case pico2d.SDLK_k:
-                    play_state.number += 1
-                    play_state.enter()
+                    boy_grass_object.number += 1
+                    game_framework.pop_state()
                 case pico2d.SDLK_j:
-                    if play_state.number >1:
-                        play_state.number -= 1
-                    play_state.enter()
+                    boy_grass_object.number -= 1
+                    game_framework.pop_state()
                     pass
 

@@ -4,7 +4,6 @@ import logo_state
 import title_state
 import item_state
 import add_delete_boy
-import random
 
 class Grass:
     def __init__(self):
@@ -16,7 +15,7 @@ class Grass:
 
 class Boy:
     def __init__(self):
-        self.x, self.y = random.randint(0, 400), 90
+        self.x, self.y = 0, 90
         self.frame = 0
         self.image = load_image('animation_sheet.png')
         self.dir = 1
@@ -58,28 +57,27 @@ def handle_events():
             elif event.key == SDLK_b:
                 game_framework.push_state(add_delete_boy)
 
-team = None
+boy = None
 grass = None
-number = 1
+
 
 # 초기화
 def enter():
-    global team, grass
-    team = [Boy() for i in range(number)]
+    global boy, grass
+    boy = Boy()
     grass = Grass()
 
 
 # 종료
 def exit():
-    global team, grass
-    del team
+    global boy, grass
+    del boy
     del grass
 
 
 # 월드에 존재하는 객체들을 업데이트 한다.
 def update():
-    for boy in team:
-        boy.update()
+    boy.update()
     # grass는 업데이트가 필요 없음
 
 
@@ -91,8 +89,7 @@ def draw():
 
 def draw_world():
     grass.draw()
-    for boy in team:
-        boy.draw()
+    boy.draw()
 
 
 def pause():
