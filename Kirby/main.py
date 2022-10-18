@@ -57,6 +57,7 @@ class Type(Enum):
 class EnemyType(Enum):
     Spark = 0
     Laser = 1
+    Hothead = 2
 
 
 # object class
@@ -85,6 +86,14 @@ class object:
                 self.rect[top] >= who[bottom]:
             return True
         return False
+
+
+def damaged(damage):
+    p.hps -= damage
+    p.invincible = True
+    if p.hps <= 0:
+        p.lifes -= 1
+        p.hps = 6
 
 
 # kirby class
@@ -341,15 +350,15 @@ class Kirby(object):
 
         for monster in monsters:
             if self.who_collide(monster.rect) and not p.invincible and not monster.sucked_flag:
-                p.hps -= 2
-                p.invincible = True
-                if monster.status != Status.Attack:
-                    p.hps -= 1
-                    p.invincible = True
-                if p.hps <= 0:
-                    p.lifes -= 1
-                    p.hps = 6
+                if monster.status == Status.Attack and monster.frame >= 12:
+                    damaged(3)
+                elif monster.status != Status.Attack:
+                    damaged(1)
                 p.time_start = time.time()
+            if monster.EnemyType == EnemyType.Laser:
+                if self.who_collide(monster.beam_rect) and not p.invincible and not monster.sucked_flag:
+                    damaged(3)
+                    p.time_start = time.time()
 
         if p.invincible:
             if p.time_finish - p.time_start >= 3:  # 적에게 맞으면 3초간 무적
@@ -417,22 +426,39 @@ class enemy(object):
         self.attack_frame = attack_frame
         self.init_posY = self.posY
         self.EnemyType = enemyType
+        self.point_x = 1930 - p.posX
+        self.point_y = 150
 
     def draw(self):
         self.image.clip_draw(self.frame * self.width, self.load_image_posY + self.look_at_left * self.height,
                              self.width, self.height, self.posX, self.posY, self.width * 2, self.height * 2)
 
     def check_status(self):
-        if self.status == Status.Work:
-            if self.look_at_left:
-                self.dx = 1
-            else:
-                self.dx = -1
-            self.set_status(24, 19, 4, 0)
-        elif self.status == Status.Attack:
-            self.set_status(64, 64, 15, 38)
-        elif self.status == Status.Sucked:
-            self.set_status(24, 16, 1, 166)
+        if self.EnemyType == EnemyType.Spark:
+            if self.status == Status.Work:
+                if self.look_at_left:
+                    self.dx = 1
+                else:
+                    self.dx = -1
+                self.set_status(24, 19, 4, 0)
+            elif self.status == Status.Attack:
+                self.set_status(64, 64, 15, 38)
+            elif self.status == Status.Sucked:
+                self.set_status(24, 16, 1, 166)
+        elif self.EnemyType == EnemyType.Laser:
+            if self.status == Status.Work:
+                self.set_status(19, 19, 3, 0)
+            elif self.status == Status.Attack:
+                self.set_status(35, 21, 13, 38)
+            elif self.status == Status.Sucked:
+                self.set_status(19, 19, 1, 80)
+        elif self.EnemyType == EnemyType.Hothead:
+            if self.status == Status.Work:
+                self.set_status(22, 21, 5, 0)
+            elif self.status == Status.Attack:
+                self.set_status(24, 21, 5, 42)
+            elif self.status == Status.Sucked:
+                self.set_status(23, 21, 1, 84)
 
     def change_status(self, status):
         self.status = status
@@ -451,46 +477,34 @@ class enemy(object):
 
     def sucked_to_kirby(self):
         if p.look_at_left:
-            dir = p.L_suck_range
+            dir_suck_range = p.L_suck_range
         else:
-            dir = p.R_suck_range
+            dir_suck_range = p.R_suck_range
 
-        if self.who_collide(dir):
+        if self.who_collide(dir_suck_range):
             self.change_status(Status.Sucked)
-            if p.look_at_left:
-                self.posX += 3
-            else:
-                self.posX -= 3
+
+            if self.EnemyType.Spark:
+                if p.look_at_left:
+                    self.posX += 3
+                else:
+                    self.posX -= 3
+            if self.EnemyType.Laser:
+                if p.look_at_left:
+                    self.point_x += 3
+                else:
+                    self.point_x -= 3
             if p.posY >= self.posY:
                 self.posY += 1
+            if p.posY <= self.posY:
+                self.posY -= 1
             self.sucked_flag = True
-
-    def attack(self):
-        if self.length_to_player <= self.monitor_to_kirby and self.status != Status.Attack:
-            self.status = Status.Attack
-        if self.status == Status.Attack:
-            self.dx = 0
-            self.cnt = -100
-        if self.frame == self.attack_frame and self.status == Status.Attack:
-            self.change_status(Status.Work)
-            self.cool_time_start = time.time()
-
-    def update(self, ms):
-        self.cool_time_finish = time.time()
-        self.check_status()
-        self.move()
-        self.animation_time = round(100 / (self.div_frame * 100), 2)
-        self.current_time += ms
-
-        if self.current_time >= self.animation_time:
-            self.current_time = 0
-            self.frame = (self.frame + 1) % self.div_frame
 
 
 class e_spark(enemy):
     def __init__(self):
         super(enemy, self).__init__(1400 - p.posX, 100, 24, 19, 0, 4, Type.Enemy)
-        super(e_spark, self).__init__(3, 60, 14, -1, 0.8, EnemyType.Spark)
+        super(e_spark, self).__init__(3, 100, 14, -1, 0.8, EnemyType.Spark)
         self.image = load_image("resource/spark_enemy.png")
 
     def jump(self):
@@ -515,6 +529,16 @@ class e_spark(enemy):
             else:
                 self.dx = 1
                 self.look_at_left = True
+
+    def attack(self):
+        if self.length_to_player <= self.monitor_to_kirby and self.status != Status.Attack:
+            self.status = Status.Attack
+        if self.status == Status.Attack:
+            self.dx = 0
+            self.cnt = -100
+        if self.frame == self.attack_frame and self.status == Status.Attack:
+            self.change_status(Status.Work)
+            self.cool_time_start = time.time()
 
     def move(self):
         self.posX += self.dx
@@ -549,15 +573,48 @@ class e_spark(enemy):
                 else:
                     self.look_at_left = True
 
+    def update(self, ms):
+        self.cool_time_finish = time.time()
+        self.check_status()
+        self.move()
+        self.animation_time = round(100 / (self.div_frame * 100), 2)
+        self.current_time += ms
+
+        if self.current_time >= self.animation_time:
+            self.current_time = 0
+            self.frame = (self.frame + 1) % self.div_frame
+
+
+class beam_laser:
+    def __init__(self, posX, posY):
+        self.image = load_image("resource/beam.png")
+        self.posX = posX
+        self.posY = posY
+
+    def draw(self):
+        self.image.draw(self.posX, self.posY, 64, 8)
+
 
 class e_laser(enemy):
     def __init__(self):
-        super(enemy, self).__init__(None, None, 21, 21, 0, 3, Type.Enemy)
-        super(e_laser, self).__init__(1, 250, 14, 0, 0, EnemyType.Laser)
+        super(enemy, self).__init__(None, None, 19, 19, 0, 3, Type.Enemy)
+        super(e_laser, self).__init__(1, 250, 12, 0, 0, EnemyType.Laser)
         self.image = load_image("resource/laser_enemy.png")
         self.dr = 1
-        self.point_x = 1530
-        self.point_y = 150
+        self.look_at_left = True
+        self.beams = [beam_laser(0, 0)]
+        self.beam_rect = [0, 0, 0, 0]
+
+    def attack(self):
+        if self.length_to_player <= self.monitor_to_kirby and self.status != Status.Attack:
+            self.status = Status.Attack
+        if self.status == Status.Attack:
+            self.dx = 0
+            self.cnt = -100
+        if self.frame == self.attack_frame and self.status == Status.Attack:
+            self.change_status(Status.Work)
+            self.cool_time_start = time.time()
+            self.beams.append(beam_laser(self.posX, self.posY))
 
     def move(self):
         self.dr += 2
@@ -572,14 +629,92 @@ class e_laser(enemy):
         self.print_enemy_to_kirby()
 
         if p.suck_flag: self.sucked_to_kirby()
-        #
-        # if not self.sucked_flag and self.posY == self.init_posY:
-        #     if self.cool_time_finish - self.cool_time_start >= self.cool_time:
-        #         self.attack()
 
-        # if not self.sucked_flag and self.posY == self.init_posY:
-        #     if self.cool_time_finish - self.cool_time_start >= self.cool_time:
-        #         self.attack()
+        if not self.sucked_flag:
+            if self.cool_time_finish - self.cool_time_start >= self.cool_time:
+                self.attack()
+
+    def update(self, ms):
+        self.cool_time_finish = time.time()
+        self.check_status()
+        self.move()
+        self.animation_time = round(100 / (self.div_frame * 100), 2)
+        self.current_time += ms
+
+        for beam in self.beams:
+            beam.posX -= 15
+            self.beam_rect = [beam.posX - 16, beam.posY - 2, beam.posX + 16, beam.posY + 2]
+            if beam.posX <= 0 and monster.EnemyType == EnemyType.Laser:
+                monster.beams.remove(beam)
+
+        if self.current_time >= self.animation_time:
+            self.current_time = 0
+            self.frame = (self.frame + 1) % self.div_frame
+
+
+class e_hothead(enemy):
+    def __init__(self):
+        super(enemy, self).__init__(2300 - p.posX, 132, 22, 21, 0, 5, Type.Enemy)
+        super(e_hothead, self).__init__(3, 100, 14, -1, 0, EnemyType.Hothead)
+        self.image = load_image("resource/hothead_enemy.png")
+        self.look_at_left = True
+
+    def attack(self):
+        if self.length_to_player <= self.monitor_to_kirby and self.status != Status.Attack:
+            self.status = Status.Attack
+        if self.status == Status.Attack:
+            self.dx = 0
+
+            self.cool_time_start = time.time()
+
+    def move(self):
+        self.posX += self.dx
+        if self.posY < 132:
+            self.posY = 132
+
+        if self.status == Status.Attack:
+            if self.frame == 4:
+                self.frame = 2
+
+        self.length_to_player = abs(p.screen_posX - self.posX)
+
+        self.rect = (self.posX - self.width, self.posY - self.height,
+                     self.posX + self.width, self.posY + self.height)
+
+        self.eated_by_kirby()
+
+        self.print_enemy_to_kirby()
+
+        if p.suck_flag: self.sucked_to_kirby()
+
+        if not self.sucked_flag and self.posY == self.init_posY:
+            if self.cool_time_finish - self.cool_time_start >= self.cool_time:
+                self.attack()
+
+        for ob in s.obstacles:
+            if self.who_collide(ob) or self.posX > 1900:
+                self.dx *= -1
+                if self.look_at_left:
+                    self.look_at_left = False
+                else:
+                    self.look_at_left = True
+
+    def update(self, ms):
+        self.cool_time_finish = time.time()
+
+
+
+        self.check_status()
+        self.move()
+        self.animation_time = round(100 / (self.div_frame * 100), 2)
+        self.current_time += ms
+
+        if self.current_time >= self.animation_time:
+            self.current_time = 0
+            self.frame = (self.frame + 1) % self.div_frame
+
+
+
 
 
 # stage class
@@ -601,7 +736,7 @@ class stage(object):
         self.under_player = 100
 
         self.obstacles = [[555, 79, 610, 110], [1065, 79, 1250, 110], [1390, 79, 2000, 110],
-                          [1580, 110, 1630, 240], [1630, 110, 1665, 180]]
+                          [1580, 110, 1630, 240], [1630, 110, 1665, 180], [2000, 0, 2001, 450]]
 
     def draw(self):
         self.stage1_background.draw(self.bg_posX, self.bg_posY, self.bg_width, self.bg_height)
@@ -720,8 +855,10 @@ def handle_events():
                     admin = False
                 else:
                     admin = True
-            elif event.key == SDLK_j:
+            elif event.key == SDLK_1:
                 monsters.append(e_spark())
+            elif event.key == SDLK_2:
+                monsters.append(e_laser())
         elif event.type == SDL_KEYUP:
             print("Player x좌표 : ", p.posX)
             print("Player Y좌표 : ", p.posY)
@@ -789,7 +926,7 @@ open_canvas(WINDOW_WIDTH, WINDOW_HEIGHT)
 # initialization code
 p = Kirby()
 s = stage()
-monsters = [e_spark(), e_laser()]
+monsters = [e_spark(), e_laser(), e_hothead()]
 
 # game main loop code
 while running:
@@ -812,6 +949,9 @@ while running:
 
     for monster in monsters:
         monster.draw()
+        if monster.EnemyType == EnemyType.Laser:
+            for beam in monster.beams:
+                beam.draw()
 
     update_canvas()
 
