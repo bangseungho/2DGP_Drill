@@ -54,6 +54,11 @@ class Type(Enum):
     Obstacle = 2
 
 
+class EnemyType(Enum):
+    Spark = 0
+    Laser = 1
+
+
 # object class
 class object:
     def __init__(self, posX, posY, width, height, load_image_posY, div_frame, obj_type):
@@ -74,6 +79,12 @@ class object:
         self.height = height
         self.div_frame = div_frame
         self.load_image_posY = load_image_posY
+
+    def who_collide(self, who):
+        if self.rect[left] <= who[right] and self.rect[right] >= who[left] and self.rect[bottom] <= who[top] and \
+                self.rect[top] >= who[bottom]:
+            return True
+        return False
 
 
 # kirby class
@@ -120,6 +131,8 @@ class Kirby(object):
         self.spit_posX = 0
         self.spit_posY = 0
         self.look_at_left_effect = False
+        self.time_start = 0
+        self.time_finish = 0
 
     def draw(self):
         self.Kirby.clip_draw(self.frame * self.width, self.look_at_left * self.height + self.load_image_posY,
@@ -191,7 +204,7 @@ class Kirby(object):
         self.screen_posX += self.dx  # player position on the screen : we can see
         self.rect = (self.screen_posX - self.width, self.posY - self.height,
                      self.screen_posX + self.width, self.posY + self.height)  # player's rect [left, bottom, right, top]
-        self.L_suck_range = (self.rect[left], self.rect[bottom], self.rect[left] - 60, self.rect[top])
+        self.L_suck_range = (self.rect[left] - 60, self.rect[bottom], self.rect[left], self.rect[top])
         self.R_suck_range = (self.rect[right], self.rect[bottom], self.rect[right] + 60, self.rect[top])
 
     def jump(self, j):
@@ -275,6 +288,7 @@ class Kirby(object):
         for ob in s.obstacles:
             if self.rect[left] <= ob[right] and self.rect[right] >= ob[left] and self.rect[bottom] <= ob[top] and \
                     self.rect[top] >= ob[bottom]:
+                self.posX -= self.dx
                 cr_ob = ob
 
                 if self.rect[right] >= ob[left] and self.rect[left] <= ob[right]:
@@ -282,6 +296,7 @@ class Kirby(object):
                         self.dx = 0
 
                 if self.rect[bottom] >= cr_ob[top] - 20:
+                    self.posX += self.dx
                     self.on_the_ob = True
                     self.posY = cr_ob[top] + 20
                     s.under_player = cr_ob[top] + 20
@@ -302,10 +317,11 @@ class Kirby(object):
             self.screen_posX = WINDOW_WIDTH / 2
 
     def update(self, ms):
+        p.time_finish = time.time()
         self.animation_time = round(100 / (self.div_frame * 100), 2)
 
         if self.status == Status.Spit:
-            self.current_time += ms * 2.5
+            self.current_time += ms * 3
         elif self.status == Status.Suck:
             self.current_time += ms * 2
         else:
@@ -322,6 +338,22 @@ class Kirby(object):
             self.breath_frame = (self.breath_frame + 1) % 9
             self.spit_frame = (self.spit_frame + 1) % 3
             self.spit_star_frame = (self.spit_frame + 1) % 6
+
+        for monster in monsters:
+            if self.who_collide(monster.rect) and not p.invincible and not monster.sucked_flag:
+                p.hps -= 2
+                p.invincible = True
+                if monster.status != Status.Attack:
+                    p.hps -= 1
+                    p.invincible = True
+                if p.hps <= 0:
+                    p.lifes -= 1
+                    p.hps = 6
+                p.time_start = time.time()
+
+        if p.invincible:
+            if p.time_finish - p.time_start >= 3:  # 적에게 맞으면 3초간 무적
+                p.invincible = False
 
         if self.bite_flag and self.status == Status.Spit:
             if self.frame == 4:
@@ -366,7 +398,7 @@ class Kirby(object):
 
 
 class enemy(object):
-    def __init__(self, cool_time, monitor_to_kirby, attack_frame, dx, dy):
+    def __init__(self, cool_time, monitor_to_kirby, attack_frame, dx, dy, enemyType):
         self.image = None
         self.dx = dx
         self.dy = dy
@@ -375,8 +407,6 @@ class enemy(object):
         self.status = 0
         self.cnt = 0
         self.randValue = 0
-        self.time_start = 0
-        self.time_finish = 0
         self.length_to_player = 0
         self.cool_time_start = 0
         self.cool_time_finish = 0
@@ -386,6 +416,7 @@ class enemy(object):
         self.monitor_to_kirby = monitor_to_kirby
         self.attack_frame = attack_frame
         self.init_posY = self.posY
+        self.EnemyType = enemyType
 
     def draw(self):
         self.image.clip_draw(self.frame * self.width, self.load_image_posY + self.look_at_left * self.height,
@@ -408,38 +439,31 @@ class enemy(object):
         self.frame = 0
 
     def eated_by_kirby(self):
-        if e_spark.length_to_player <= 10 and e_spark.sucked_flag:
+        if self.length_to_player <= 10 and self.sucked_flag:
             p.change_status(Status.Bite)
             self.change_status(Status.Sucked)
-            self.death = True
+            monsters.remove(self)
 
     def print_enemy_to_kirby(self):
-        self.length_to_player = abs(p.screen_posX - self.posX)
-        print(self.length_to_player)
+        if self.length_to_player <= self.monitor_to_kirby:
+            print("적 공격 사정거리 안")
+            print(self.length_to_player)
 
     def sucked_to_kirby(self):
-        if p.suck_flag:
-            if p.R_suck_range[right] >= self.rect[left] and p.R_suck_range[left] <= self.rect[right] and \
-                    p.R_suck_range[top] >= self.rect[bottom] and p.R_suck_range[bottom] <= self.rect[top] \
-                    and not p.look_at_left:
-                print("sucked!!!")
-                self.posX -= 3
-                self.change_status(Status.Sucked)
-                self.look_at_left = False
-                if p.posY >= self.posY:
-                    self.posY += 1
-                self.sucked_flag = True
+        if p.look_at_left:
+            dir = p.L_suck_range
+        else:
+            dir = p.R_suck_range
 
-            elif self.rect[right] >= p.L_suck_range[right] and self.rect[left] <= p.L_suck_range[left] and \
-                    self.rect[top] >= p.L_suck_range[bottom] and self.rect[bottom] <= p.L_suck_range[top] \
-                    and p.look_at_left:
-                print("sucked!!!")
+        if self.who_collide(dir):
+            self.change_status(Status.Sucked)
+            if p.look_at_left:
                 self.posX += 3
-                self.change_status(Status.Sucked)
-                self.look_at_left = True
-                if p.posY >= self.posY:
-                    self.posY += 1
-                self.sucked_flag = True
+            else:
+                self.posX -= 3
+            if p.posY >= self.posY:
+                self.posY += 1
+            self.sucked_flag = True
 
     def attack(self):
         if self.length_to_player <= self.monitor_to_kirby and self.status != Status.Attack:
@@ -452,11 +476,7 @@ class enemy(object):
             self.cool_time_start = time.time()
 
     def update(self, ms):
-        self.time_finish = time.time()
         self.cool_time_finish = time.time()
-        if p.invincible:
-            if self.time_finish - self.time_start >= 3:  # 적에게 맞으면 3초간 무적
-                p.invincible = False
         self.check_status()
         self.move()
         self.animation_time = round(100 / (self.div_frame * 100), 2)
@@ -469,8 +489,8 @@ class enemy(object):
 
 class e_spark(enemy):
     def __init__(self):
-        super(enemy, self).__init__(1000, 100, 24, 19, 0, 4, Type.Enemy)
-        super(e_spark, self).__init__(3, 60, 14, -1, 0.8)
+        super(enemy, self).__init__(1400 - p.posX, 100, 24, 19, 0, 4, Type.Enemy)
+        super(e_spark, self).__init__(3, 60, 14, -1, 0.8, EnemyType.Spark)
         self.image = load_image("resource/spark_enemy.png")
 
     def jump(self):
@@ -496,14 +516,9 @@ class e_spark(enemy):
                 self.dx = 1
                 self.look_at_left = True
 
-    def who_collide(self, who):
-        if self.rect[left] <= who[right] and self.rect[right] >= who[left] and self.rect[bottom] <= who[top] and \
-                self.rect[top] >= who[bottom]:
-            return True
-        return False
-
     def move(self):
         self.posX += self.dx
+        self.length_to_player = abs(p.screen_posX - self.posX)
 
         self.rect = (self.posX - self.width, self.posY - self.height,
                      self.posX + self.width, self.posY + self.height)
@@ -514,7 +529,7 @@ class e_spark(enemy):
 
         self.trace()
 
-        self.sucked_to_kirby()
+        if p.suck_flag: self.sucked_to_kirby()
 
         if not self.sucked_flag and self.posY == self.init_posY:
             if self.cool_time_finish - self.cool_time_start >= self.cool_time:
@@ -533,58 +548,22 @@ class e_spark(enemy):
                     self.look_at_left = False
                 else:
                     self.look_at_left = True
-
-        if self.who_collide(p.rect) and not p.invincible and not self.sucked_flag:
-            if self.frame >= 10:
-                p.hps -= 2
-                p.invincible = True
-            elif self.status != Status.Attack:
-                p.hps -= 1
-                p.invincible = True
-            if p.hps <= 0:
-                p.lifes -= 1
-                p.hps = 6
-            self.time_start = time.time()
 
 
 class e_laser(enemy):
     def __init__(self):
-        super(enemy, self).__init__(1200, 100, 24, 19, 0, 4, Type.Enemy)
-        super(e_laser, self).__init__(3, 60, 14, -1, 0.8)
-        self.image = load_image("resource/spark_enemy.png")
-
-    def jump(self):
-        if self.posY >= 130:
-            self.dy *= -1
-        elif self.posY == 100:
-            self.status = Status.Work
-            self.randValue = random.randint(100, 300)
-
-    def Work(self):
-        self.cnt += 1
-        if self.cnt >= self.randValue:
-            self.cnt = 0
-            self.status = Status.Jump
-            self.dy = 1
-
-    def trace(self):
-        if self.length_to_player <= 130 and self.posY == p.posY:
-            if self.posX >= p.screen_posX:
-                self.dx = -1
-                self.look_at_left = False
-            else:
-                self.dx = 1
-                self.look_at_left = True
-
-    def who_collide(self, who):
-        if self.rect[left] <= who[right] and self.rect[right] >= who[left] and self.rect[bottom] <= who[top] and \
-                self.rect[top] >= who[bottom]:
-            return True
-        return False
+        super(enemy, self).__init__(None, None, 21, 21, 0, 3, Type.Enemy)
+        super(e_laser, self).__init__(1, 250, 14, 0, 0, EnemyType.Laser)
+        self.image = load_image("resource/laser_enemy.png")
+        self.dr = 1
+        self.point_x = 1530
+        self.point_y = 150
 
     def move(self):
-        self.posX += self.dx
-
+        self.dr += 2
+        self.posX = self.point_x + 8 * math.sin(self.dr / 360 * 2 * math.pi)
+        self.posY = self.point_y + 8 * math.cos(self.dr / 360 * 2 * math.pi)
+        self.length_to_player = abs(p.screen_posX - self.point_x)
         self.rect = (self.posX - self.width, self.posY - self.height,
                      self.posX + self.width, self.posY + self.height)
 
@@ -592,39 +571,15 @@ class e_laser(enemy):
 
         self.print_enemy_to_kirby()
 
-        self.trace()
+        if p.suck_flag: self.sucked_to_kirby()
+        #
+        # if not self.sucked_flag and self.posY == self.init_posY:
+        #     if self.cool_time_finish - self.cool_time_start >= self.cool_time:
+        #         self.attack()
 
-        self.sucked_to_kirby()
-
-        if not self.sucked_flag and self.posY == self.init_posY:
-            if self.cool_time_finish - self.cool_time_start >= self.cool_time:
-                self.attack()
-        if self.status == Status.Jump:
-            self.posY += self.dy
-        if self.status == Status.Jump:
-            self.jump()
-        if self.status == Status.Work:
-            self.Work()
-
-        for ob in s.obstacles:
-            if self.who_collide(ob):
-                self.dx *= -1
-                if self.look_at_left:
-                    self.look_at_left = False
-                else:
-                    self.look_at_left = True
-
-        if self.who_collide(p.rect) and not p.invincible and not self.sucked_flag:
-            if self.frame >= 10:
-                p.hps -= 2
-                p.invincible = True
-            elif self.status != Status.Attack:
-                p.hps -= 1
-                p.invincible = True
-            if p.hps <= 0:
-                p.lifes -= 1
-                p.hps = 6
-            self.time_start = time.time()
+        # if not self.sucked_flag and self.posY == self.init_posY:
+        #     if self.cool_time_finish - self.cool_time_start >= self.cool_time:
+        #         self.attack()
 
 
 # stage class
@@ -656,7 +611,11 @@ class stage(object):
         if -200 < self.land_posX <= 1000:
             self.bg_posX -= p.dx / 5
             self.land_posX -= p.dx
-            e_spark.posX -= p.dx
+            for monster in monsters:
+                if monster.EnemyType == EnemyType.Laser:
+                    monster.point_x -= p.dx
+                else:
+                    monster.posX -= p.dx
 
             for ob in self.obstacles:
                 ob[0] -= p.dx
@@ -670,7 +629,11 @@ class stage(object):
         if p.posX <= max_scroll_left or p.posX >= max_scroll_right:
             self.bg_posX += p.dx / 5
             self.land_posX += p.dx
-            e_spark.posX += p.dx
+            for monster in monsters:
+                if monster.EnemyType == EnemyType.Laser:
+                    monster.point_x += p.dx
+                else:
+                    monster.posX += p.dx
 
             for ob in self.obstacles:
                 ob[0] += p.dx
@@ -757,7 +720,11 @@ def handle_events():
                     admin = False
                 else:
                     admin = True
+            elif event.key == SDLK_j:
+                monsters.append(e_spark())
         elif event.type == SDL_KEYUP:
+            print("Player x좌표 : ", p.posX)
+            print("Player Y좌표 : ", p.posY)
             start_sec = time.time()
             if event.key == SDLK_RIGHT:
                 p.work_flag = False
@@ -776,9 +743,10 @@ def handle_events():
             elif event.key == SDLK_DOWN:
                 p.set_dir(0, 2, p.look_at_left)
             elif event.key == SDLK_LCTRL:
-                if e_spark.sucked_flag:
-                    e_spark.change_status(Status.Work)
-                e_spark.sucked_flag = False
+                for monster in monsters:
+                    monster.sucked_flag = False
+                    if not monster.sucked_flag:
+                        monster.change_status(Status.Work)
                 p.suck_flag = False
                 if p.work_flag and p.posY == s.under_player:
                     p.change_status(Status.Work)
@@ -798,8 +766,9 @@ def handle_events():
 
 def admin_key():
     if p.dx != 0:
-        print(p.status)
-        print(p.posX)
+        pass
+        # print(p.status)
+        # print(p.posX)
     draw_rectangle(p.screen_posX - p.width, p.rect[bottom], p.screen_posX + p.width, p.rect[top])
     if p.suck_flag:
         if p.look_at_left:
@@ -811,8 +780,8 @@ def admin_key():
     for ob in s.obstacles:
         draw_rectangle(ob[0], ob[1], ob[2], ob[3])
 
-    if not e_spark.death:
-        draw_rectangle(e_spark.rect[left], e_spark.rect[bottom], e_spark.rect[right], e_spark.rect[top])
+    for monster in monsters:
+        draw_rectangle(monster.rect[left], monster.rect[bottom], monster.rect[right], monster.rect[top])
 
 
 open_canvas(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -820,7 +789,7 @@ open_canvas(WINDOW_WIDTH, WINDOW_HEIGHT)
 # initialization code
 p = Kirby()
 s = stage()
-e_spark = e_spark()
+monsters = [e_spark(), e_laser()]
 
 # game main loop code
 while running:
@@ -830,8 +799,9 @@ while running:
     handle_events()
     p.update(m_t)
 
-    if not e_spark.death:
-        e_spark.update(m_t)
+    for monster in monsters:
+        monster.update(m_t)
+
     s.update()
 
     # rendering
@@ -840,8 +810,8 @@ while running:
     s.draw()
     p.draw()
 
-    if not e_spark.death:
-        e_spark.draw()
+    for monster in monsters:
+        monster.draw()
 
     update_canvas()
 
