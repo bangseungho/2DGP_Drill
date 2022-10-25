@@ -3,7 +3,9 @@ import game_framework
 import logo_state
 import title_state
 import item_state
-import add_delete_boy
+import boy_adjust_state
+import random
+
 
 class Grass:
     def __init__(self):
@@ -15,8 +17,8 @@ class Grass:
 
 class Boy:
     def __init__(self):
-        self.x, self.y = 0, 90
-        self.frame = 0
+        self.x, self.y = random.randint(0, 800), 90
+        self.frame = random.randint(0, 7)
         self.image = load_image('animation_sheet.png')
         self.dir = 1
         self.item = 'None'
@@ -25,7 +27,7 @@ class Boy:
 
     def update(self):
         self.frame = (self.frame + 1) % 8
-        self.x += self.dir * 1
+        self.x += self.dir * 3
         if self.x > 800:
             self.x = 800
             self.dir = -1
@@ -35,7 +37,8 @@ class Boy:
 
     def draw(self):
         if self.dir == 1:
-            self.image.clip_draw(self.frame * 100, 100, 100, 100, self.x, self.y)
+            self.image.clip_draw(self.frame * 100, 100,
+                                 100, 100, self.x, self.y)
         elif self.dir == -1:
             self.image.clip_draw(self.frame * 100, 0, 100, 100, self.x, self.y)
         if self.item == 'Ball':
@@ -50,34 +53,39 @@ def handle_events():
         if event.type == SDL_QUIT:
             game_framework.quit()
         elif event.type == SDL_KEYDOWN:
-            if event.key == SDLK_ESCAPE:
-                game_framework.quit()
-            elif event.key == SDLK_i:
-                game_framework.push_state(item_state)
-            elif event.key == SDLK_b:
-                game_framework.push_state(add_delete_boy)
+            match event.key:
+                case pico2d.SDLK_ESCAPE:
+                    # game_framework.change_state(title_state)
+                    game_framework.quit()
+                case pico2d.SDLK_i:
+                    game_framework.push_state(item_state)
+                case pico2d.SDLK_b:
+                    game_framework.push_state(boy_adjust_state)
 
-boy = None
+
+boys = []
 grass = None
 
 
 # 초기화
 def enter():
-    global boy, grass
-    boy = Boy()
+    global grass
+    boys.append(Boy())
     grass = Grass()
 
 
 # 종료
 def exit():
-    global boy, grass
-    del boy
+    global grass
+    for boy in boys:
+        del boy
     del grass
 
 
 # 월드에 존재하는 객체들을 업데이트 한다.
 def update():
-    boy.update()
+    for boy in boys:
+        boy.update()
     # grass는 업데이트가 필요 없음
 
 
@@ -89,7 +97,8 @@ def draw():
 
 def draw_world():
     grass.draw()
-    boy.draw()
+    for boy in boys:
+        boy.draw()
 
 
 def pause():
@@ -98,3 +107,15 @@ def pause():
 
 def resume():
     pass
+
+def add_one_boy():
+    boys.append(Boy())
+
+def delete_one_boy():
+    if len(boys) >= 2:
+        boys.pop()
+
+def set_all_boys_items(item):
+    for boy in boys:
+        boy.item = item
+

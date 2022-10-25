@@ -26,11 +26,10 @@ def update():
         game_framework.change_state(title_state)
 
 
-
 def draw():
     global image
     clear_canvas()
-    image.draw(400, 200)
+    image.draw(400, 300)
     update_canvas()
 
 
