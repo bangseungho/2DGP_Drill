@@ -9,7 +9,7 @@ class Ball:
     def __init__(self):
         if Ball.image == None:
             Ball.image = load_image('ball21x21.png')
-        self.x, self.y = random.randint(0, 1600), random.randint(0, 1200)
+        self.x, self.y = random.randint(0, 1600), random.randint(0, 1000)
 
     def draw(self):
         self.sx, self.sy = self.x - server.background.window_left, self.y - server.background.window_bottom

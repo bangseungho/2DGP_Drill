@@ -74,7 +74,7 @@ class WalkingState:
     def draw(boy):
         sx, sy = boy.x - server.background.window_left, boy.y - server.background.window_bottom
 
-        boy.font.draw(sx - 20, sy + 40, '%d' % (boy.num), (255, 255, 0))
+        boy.font.draw(sx - 40, sy + 50, 'Ball num : %d' % (boy.num), (255, 255, 0))
 
         if boy.x_velocity > 0:
             boy.image.clip_draw(int(boy.frame) * 100, 100, 100, 100, sx, sy)
