@@ -128,57 +128,14 @@ next_state = {
 }
 
 
-# class Boy:
+class Boy:
 
-#     def __init__(self):
-#         self.x, self.y = 100, 90
-#         self.frame = 0
-#         self.dir, self.face_dir = 0, 1
-#         self.image = load_image('animation_sheet.png')
-#         self.font = load_font('ENCR10B.TTF', 16)
-#         self.timer = 100
-
-#         self.event_que = []
-#         self.cur_state = IDLE
-#         self.cur_state.enter(self, None)
-
-#     def update(self):
-#         self.cur_state.do(self)
-
-#         if self.event_que:
-#             event = self.event_que.pop()
-#             self.cur_state.exit(self, event)
-#             try:
-#                 self.cur_state = next_state[self.cur_state][event]
-#             except KeyError:
-#                 print(
-#                     f'ERROR: State {self.cur_state.__name__}    Event {event_name[event]}')
-#             self.cur_state.enter(self, event)
-
-#     def draw(self):
-#         self.cur_state.draw(self)
-#         self.font.draw(self.x - 60, self.y + 50,
-#                        f'(Time: {get_time():.2f})', (255, 255, 0))
-
-#     def add_event(self, event):
-#         self.event_que.insert(0, event)
-
-#     def handle_event(self, event):
-#         if (event.type, event.key) in key_event_table:
-#             key_event = key_event_table[(event.type, event.key)]
-#             self.add_event(key_event)
-
-#     def fire_ball(self):
-#         print('FIRE BALL')
-#         ball = Ball(self.x, self.y, self.face_dir*2)
-#         game_world.add_object(ball, 1)
-
-class Bird:
     def __init__(self):
-        self.x, self.y = random.randint(1, 800), 150
+        self.x, self.y = 100, 90
         self.frame = 0
         self.dir, self.face_dir = 0, 1
-        self.image = load_image('bird_animation.png')
+        self.image = load_image('animation_sheet.png')
+        self.font = load_font('ENCR10B.TTF', 16)
         self.timer = 100
 
         self.event_que = []
@@ -200,7 +157,52 @@ class Bird:
 
     def draw(self):
         self.cur_state.draw(self)
+        self.font.draw(self.x - 60, self.y + 50,
+                       f'(Time: {get_time():.2f})', (255, 255, 0))
 
+    def add_event(self, event):
+        self.event_que.insert(0, event)
+
+    def handle_event(self, event):
+        if (event.type, event.key) in key_event_table:
+            key_event = key_event_table[(event.type, event.key)]
+            self.add_event(key_event)
+
+    def fire_ball(self):
+        print('FIRE BALL')
+        ball = Ball(self.x, self.y, self.face_dir*2)
+        game_world.add_object(ball, 1)
+
+class Bird:
+    def __init__(self):
+        self.x, self.y = random.randint(1, 800), 150
+        self.frame = 0
+        self.dir, self.face_dir = 0, 1
+        self.image = load_image('bird_animation.png')
+        self.font = load_font('ENCR10B.TTF', 16)
+        self.timer = 100
+
+        self.event_que = []
+        self.cur_state = IDLE
+        self.cur_state.enter(self, None)
+
+    def update(self):
+        self.cur_state.do(self)
+
+        if self.event_que:
+            event = self.event_que.pop()
+            self.cur_state.exit(self, event)
+            try:
+                self.cur_state = next_state[self.cur_state][event]
+            except KeyError:
+                print(
+                    f'ERROR: State {self.cur_state.__name__}    Event {event_name[event]}')
+            self.cur_state.enter(self, event)
+
+    def draw(self):
+        self.cur_state.draw(self)
+        self.font.draw(self.x - 60, self.y + 50,
+                       f'(Time: {get_time():.2f})', (255, 255, 0))
     def add_event(self, event):
         self.event_que.insert(0, event)
 
